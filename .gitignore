@@ -48,3 +48,8 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 *.Rproj
+
+# Exclude Data
+Data/
+
+.DS_Store
