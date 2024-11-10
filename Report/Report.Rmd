@@ -1,0 +1,716 @@
+---
+title: "Analysis on the Cessation Effect on Smoking among Patients with MDD with the Combination Treatment of Behavioral Activation and Varenicline"
+author: "William Qian"
+date: "November 2024"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, message = FALSE, echo = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+library(mice, warn.conflicts = FALSE)
+library(naniar)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(tidyr)
+library(readxl)
+library(ggpubr)
+library(gtsummary)
+library(GGally)
+library(ggcorrplot)
+library(knitr)
+library(kableExtra)
+library(lubridate)
+library(patchwork)
+library(introdataviz)
+library(glmnet)
+library(gt)
+library(L0Learn)
+library(gridExtra)
+library(purrr)
+library(pROC)
+library(caret) 
+
+```
+
+# Introduction
+
+Major Depressive Disorder (MDD) and smoking exhibit a complex relationship, with individuals with MDD being more likely to smoke heavily, demonstrate higher nicotine dependence, and experience more severe withdrawal symptoms during quit attempts. While varenicline is an effective pharmacotherapy for smoking cessation, and Behavioral Activation (BA) has shown promise in treating depression-related symptoms, their combined effectiveness in treating smokers with MDD remains unclear. A previous randomized, placebo-controlled, 2×2 factorial trial comparing BA for smoking cessation (BASC) versus standard behavioral treatment (ST), with and without varenicline, found that BASC did not outperform ST in adult smokers with current or past MDD.
+
+The present study aims to extend these findings by examining baseline variables as potential moderators of treatment effects and evaluating predictors of smoking abstinence, controlling for behavioral treatment and pharmacotherapy. We consider various potential moderators including depression-related factors (anhedonia, current MDD status, depression severity), smoking-related characteristics (nicotine dependence, cigarettes per day, readiness to quit), and demographic variables. Understanding these relationships could help identify which smokers with MDD might benefit most from particular treatment approaches, ultimately leading to more personalized and effective smoking cessation interventions for this high-risk population.
+
+# Data
+
+The data contains 300 observations with 25 variables (including 1 id column) collected from a randomized, placebo-controlled, 2×2 factorial trial involving adult smokers with current or past major depressive disorder (MDD). After removing observations with missing values, our final analytical sample consisted of 241 participants.
+
+```{r load_data, echo=FALSE, include=FALSE}
+# Load the data
+data <- read.csv("../Data/project2.csv")
+data
+```
+
+|       Variable       |                                                                   Description                                                                   |
+|:--------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------:|
+|        abst          |                                                          Smoking Abstinence                                                                    |
+|         Var          |                                                    Pharmacotherapy (Varenicline)                                                               |
+|         BA           |                                               Psychotherapy (Behavioral Activation)                                                            |
+|       age_ps         |                                                          Age at phone interview                                                                |
+|       sex_ps         |                                                          Sex at phone interview                                                                |
+|        NHW           |                                                   Non-Hispanic White indicator                                                                |
+|       Black          |                                                              Black indicator                                                                   |
+|        Hisp          |                                                            Hispanic indicator                                                                  |
+|        inc           |                                         Income (ordinal categorical, low to high)                                                              |
+|        edu           |                                        Education (ordinal categorical, low to high)                                                           |
+|     ftcd_score       |                                                       FTCD score at baseline                                                                  |
+|     ftcd.5.mins      |                                                    Smoking within 5 mins of waking up                                                         |
+|    bdi_score_pq1     |                                           BDI score at baseline (a measure of depression)                                                     |
+|       cpd_ps         |                                              Cigarettes per day at baseline phone survey                                                      |
+|    crv_total_pq1     |                                               Cigarette reward value at baseline                                                              |
+|   hedonsum_n_pq1     |                                Pleasurable Events Scale at baseline – substitute reinforcers                                                  |
+|   hedonsum_y_pq1     |                              Pleasurable Events Scale at baseline – complementary reinforcers                                                 |
+|  shaps_score_pq1     |  Anhedonia                         |
+|     otherdiag        |                                               Other lifetime DSM-5 diagnosis                                                                  |
+|    antidepmed        |                                            Taking antidepressant medication at baseline                                                      |
+|      mde_curr        |                                                      Current vs past MDD                                                                      |
+|        NMR           |                                                    Nicotine Metabolism Ratio                                                                  |
+|    Only.Menthol      |                                          Exclusive Mentholated Cigarette User                                                                 |
+|      readiness       |                                                 Baseline readiness to quit smoking                                                            |
+
+```{r transform_data, echo=FALSE, include=FALSE}
+# Transform data type
+data$abst <- as.factor(data$abst)
+data$Var <- as.factor(data$Var)
+data$BA <- as.factor(data$BA)
+data$sex_ps <- as.factor(data$sex_ps)
+data$NHW <- as.factor(data$NHW)
+data$Black <- as.factor(data$Black)
+data$Hisp <- as.factor(data$Hisp)
+data$inc <- as.factor(data$inc)
+data$edu <- as.factor(data$edu)
+data$otherdiag <- as.factor(data$otherdiag)
+data$antidepmed <- as.factor(data$antidepmed)
+data$mde_curr <- as.factor(data$mde_curr)
+data$Only.Menthol <- as.factor(data$Only.Menthol)
+data$readiness <- as.numeric(data$readiness)
+
+dim(data)
+
+summary(data)
+
+data <- na.omit(data)
+summary(data)
+dim(data)
+
+```
+
+Analysis of the baseline characteristics by treatment groups reveals several notable patterns. When comparing the varenicline and placebo groups, we observe a significant difference in abstinence rates (28% vs 8.4%, p < 0.001), indicating varenicline's potential effectiveness. However, other baseline characteristics were well-balanced between the pharmacotherapy groups, suggesting successful randomization. Similarly, when comparing behavioral activation (BA) and standard treatment groups, most characteristics were balanced, with the exception of antidepressant medication use (35% in BA group vs 19% in standard treatment group, p = 0.004).
+
+```{r eda, echo=FALSE}
+summary_var1 <- tbl_summary(data %>% select(-id), by = Var, type = list(readiness ~ "continuous")) %>% 
+  add_p() %>% 
+  modify_header(stat_1 = "**No Varenicline**", stat_2 = "**Varenicline**")
+summary_var2 <- tbl_summary(data  %>% select(-id), by = BA, type = list(readiness ~ "continuous")) %>% 
+  add_p() %>% 
+  modify_header(stat_1 = "**No Psychotherapy**", stat_2 = "**Psychotherapy**")
+
+tbl_merge(
+  tbls = list(summary_var1, summary_var2),
+  tab_spanner = c("**Grouped by Pharmacotherapy Status**", "**Grouped by Psychotherapy Status**")
+) %>%
+  as_kable_extra(booktabs = TRUE,
+caption = "Data Summary Table",
+longtable = TRUE, linesep = "") %>%
+kableExtra::kable_styling(font_size = 8, latex_options = c("repeat_header", "HOLD_position"))
+
+```
+
+Examination of correlations among continuous variables revealed several significant relationships. Notably, cigarettes per day (cpd_ps) showed a moderate positive correlation with FTCD score (r = 0.517, p < 0.001), which is expected as both measure aspects of smoking dependency. The Beck Depression Inventory score (bdi_score_w00) demonstrated negative correlations with both hedonic capacity measures (hedonsum_n_pq1 and hedonsum_y_pq1), suggesting that higher depression levels are associated with reduced pleasure experiences.
+
+```{r continuous_validation_check, echo=FALSE, fig.width=10, fig.height=5}
+continuous_vars <- data[, c("age_ps", "ftcd_score", "bdi_score_w00", "cpd_ps", "crv_total_pq1", "hedonsum_n_pq1", "hedonsum_y_pq1")]
+corr_plot <- ggpairs(continuous_vars, title = "Correlation Matrix of Baseline Predictors") +
+  theme_minimal()
+
+ggsave("../Figures/corr_plot.png", plot = corr_plot, dpi = 300)
+corr_plot
+
+```
+
+The distribution analysis of numeric variables revealed right-skewed patterns in several measures, particularly hedonsum_n_pq1, hedonsum_y_pq1, and NMR. To address this non-normality, we applied log transformations to these variables. The transformed distributions showed improved symmetry and reduced skewness, making them more suitable for our subsequent analyses. Other numeric variables, including age, FTCD score, and depression measures, showed approximately normal distributions and were kept in their original scale.
+
+```{r variable_distribution, echo=FALSE, fig.width=15, fig.height=8}
+dist_numeric <- data %>%
+  select(-id) %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram() +
+    ggtitle("Distribution of Numeric Variables")
+
+dist_cat <- data %>%
+  select(-id) %>%
+  keep(is.factor) %>%
+  gather(key = "key", value = "value") %>%
+  ggplot(aes(x = value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_bar()+
+    ggtitle("Distribution of Categorical Variables")
+
+dist_plot <- gridExtra::grid.arrange(dist_numeric, dist_cat, ncol = 2)
+
+ggsave("../Figures/dist_plot.png", plot = dist_plot, dpi = 300)
+dist_plot
+
+```
+
+This is the distribution of hedonsum_n_pq1, hedonsum_y_pq1, and NMR after log transformation.
+
+```{r log_transform, echo=FALSE, fig.height=5, fig.width=8}
+data$hedonsum_n_pq1 <- log(data$hedonsum_n_pq1 + 1)
+data$hedonsum_y_pq1 <- log(data$hedonsum_y_pq1 + 1)
+data$NMR <- log(data$NMR)
+
+dist_after_log <- data %>%
+  select(c(hedonsum_n_pq1, hedonsum_y_pq1, NMR)) %>%
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram() +
+    ggtitle("Distribution after Log Transformation")
+
+ggsave("../Figures/dist_after_log.png", plot = dist_after_log, dpi = 300)
+dist_after_log
+
+```
+
+# Methods
+
+In this study, we employed three regularized regression approaches - LASSO (L1), Ridge (L2), and Elastic Net regularization - to analyze the moderators and predictors of smoking cessation outcomes.
+
+Given our binary outcome of smoking abstinence ($y$), we used logistic regression with different regularization terms. The basic form of our logistic regression model is:
+
+$$
+P(y = 1|X) = \frac{1}{1 + e^{-X\beta}}
+$$
+
+where $X$ represents our predictor variables and $\beta$ represents the coefficients.
+
+## LASSO (L1) Regularization
+
+LASSO (Least Absolute Shrinkage and Selection Operator) adds an L1 penalty term to the log-likelihood function:
+
+$$
+\hat{\beta}_{LASSO} = \underset{\beta}{\operatorname{argmin}} \{-l(\beta) + \lambda\sum_{j=1}^{p}|\beta_j|\}
+$$
+
+where $l(\beta)$ is the log-likelihood and $\lambda$ is the regularization parameter. The L1 penalty encourages sparsity by shrinking some coefficients exactly to zero, effectively performing variable selection.
+
+## Ridge (L2) Regularization
+Ridge regression uses an L2 penalty term:
+
+$$
+\hat{\beta}_{Ridge} = \underset{\beta}{\operatorname{argmin}} \{-l(\beta) + \lambda\sum_{j=1}^{p}\beta_j^2\}
+$$
+
+The L2 penalty shrinks coefficients toward zero but rarely sets them exactly to zero. This approach is particularly useful when dealing with correlated predictors.
+
+## Elastic Net
+
+Elastic Net combines both L1 and L2 penalties:
+
+$$
+\hat{\beta}_{ElasticNet} = \underset{\beta}{\operatorname{argmin}} \{-l(\beta) + \lambda(\alpha\sum_{j=1}^{p}|\beta_j| + (1-\alpha)\sum_{j=1}^{p}\beta_j^2)\}
+$$
+
+where $\alpha$ controls the mix between L1 and L2 penalties ($\alpha = 1$ gives LASSO, $\alpha = 0$ gives Ridge). This combination allows for both variable selection and handling of correlated predictors.
+
+## Model Implementation
+
+We implemented these models using the glmnet package in R, with cross-validation to select the optimal $\lambda$ value. For the Elastic Net model, we set $\alpha = 0.5$ to give equal weight to L1 and L2 penalties. The models were evaluated using AUC and accuracy metrics on both training and test sets, with the data split in a 50:50 ratio to ensure robust validation of our findings.
+
+# Regresssion Analysis
+
+## Basic Models
+
+We first implemented two fundamental regularized regression models (Ridge and LASSO regression without interaction terms) to examine the relationship between smoking abstinence and our predictors.
+
+```{r train_test_split, echo=FALSE}
+# Split the data
+set.seed(123)
+
+train_index <- createDataPartition(data$abst, p = 0.5, list = FALSE)
+
+train_data <- data[train_index, ] %>% select(-id)
+test_data <- data[-train_index, ] %>% select(-id)
+
+X_train <- model.matrix(abst ~ ., data = train_data)[, -1]
+Y_train <- factor(train_data$abst)
+
+X_test <- model.matrix(abst ~ ., data = test_data)[, -1]
+Y_test <- factor(test_data$abst)
+```
+
+```{r model_fit, echo=FALSE}
+model_fit <- function(X_train, Y_train, X_test, Y_test, alpha, lambda_seq = seq(0.001, 0.1, length.out = 100)) {
+ set.seed(123)
+ cv_model <- cv.glmnet(X_train, Y_train, alpha = alpha, family = "binomial", lambda = lambda_seq)
+ best_lambda <- cv_model$lambda.min
+ lasso_coef <- coef(cv_model, s = best_lambda)
+ 
+ # Get predictions for both train and test sets
+ train_pred <- predict(cv_model, newx = X_train, s = best_lambda, type = "response")
+ test_pred <- predict(cv_model, newx = X_test, s = best_lambda, type = "response")
+ 
+ # Convert predictions to binary using 0.5 threshold
+ train_pred_binary <- ifelse(train_pred > 0.5, 1, 0)
+ test_pred_binary <- ifelse(test_pred > 0.5, 1, 0)
+ 
+ # ROC and AUC
+ train_roc <- roc(Y_train, as.numeric(train_pred))
+ test_roc <- roc(Y_test, as.numeric(test_pred))
+ 
+ # Calculate metrics
+ metrics <- data.frame(
+   Metric = c(
+     "AUC (Train)", 
+     "AUC (Test)",
+     "Accuracy (Train)",
+     "Accuracy (Test)",
+     "Lambda Min"
+   ),
+   Value = c(
+     auc(train_roc),
+     auc(test_roc),
+     mean(train_pred_binary == Y_train),
+     mean(test_pred_binary == Y_test),
+     cv_model$lambda.min
+   )
+ ) %>%
+   mutate(Value = round(Value, 3))
+
+ # Create ROC curve data
+ roc_df <- data.frame(
+   FPR = 1 - test_roc$specificities,
+   TPR = test_roc$sensitivities
+ )
+ 
+ # Create ROC plot using ggplot2
+ roc_plot <- ggplot(roc_df, aes(x = FPR, y = TPR)) +
+   geom_line(color = "blue", size = 1) +
+   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray") +
+   labs(
+     title = paste("ROC Curve (AUC =", round(auc(test_roc), 3), ")"),
+     x = "False Positive Rate",
+     y = "True Positive Rate"
+   ) +
+   theme_minimal()
+
+ # Create CV plot data
+ cv_df <- data.frame(
+   lambda = log(cv_model$lambda),
+   mean = cv_model$cvm,
+   upper = cv_model$cvup,
+   lower = cv_model$cvlo
+ )
+ 
+ # Create CV plot using ggplot2
+ cv_plot <- ggplot(cv_df, aes(x = lambda)) +
+   geom_line(aes(y = mean), color = "blue") +
+   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.2) +
+   geom_vline(xintercept = log(cv_model$lambda.min), linetype = "dashed", color = "red") +
+   geom_vline(xintercept = log(cv_model$lambda.1se), linetype = "dashed", color = "green") +
+   labs(
+     title = "Cross-validation Results",
+     x = "log(Lambda)",
+     y = "Mean-Squared Error"
+   ) +
+   theme_minimal()
+
+ # Combine plots
+ combined_plot <- ggarrange(roc_plot, cv_plot, 
+                          ncol = 2, 
+                          labels = c("A", "B"))
+ 
+ # Create coefficient dataframe
+ coef_df <- data.frame(
+   Variable = rownames(lasso_coef),
+   Coefficient = as.vector(lasso_coef)
+ ) %>%
+ mutate(Coefficient = ifelse(Coefficient == 0, "Eliminated", round(Coefficient, 3)))
+ 
+ return(list(
+   combined_plot = combined_plot, 
+   coef_df = coef_df,
+   metrics = metrics
+ ))
+}
+
+plot_variable_importance <- function(coef_df) {
+ # Calculate variable importance by taking absolute values of non-eliminated coefficients
+ var_importance <- coef_df %>%
+   filter(Coefficient != "Eliminated") %>%
+   mutate(
+     Coefficient = as.numeric(Coefficient),
+     Importance = abs(Coefficient)
+   ) %>%
+   arrange(desc(Importance))
+ 
+ # Create bar plot of variable importance
+ importance_plot <- ggplot(var_importance, aes(x = reorder(Variable, Importance), y = Importance)) +
+   geom_bar(stat = "identity", fill = "steelblue") +
+   coord_flip() + # Flip coordinates for horizontal bars
+   theme_minimal() + # Use minimal theme for clean look
+   labs(title = "Variable Importance",
+        x = "Variables", 
+        y = "Absolute Coefficient Value")
+ 
+ # Return both plot and processed data
+ return(list(
+   plot = importance_plot,
+   importance_df = var_importance
+ ))
+}
+```
+
+### Lasso Regression
+
+The LASSO regression with $\lambda = 0.033$ can be expressed as:
+
+$$
+\begin{aligned}
+logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times inc5 + \beta_3 \times edu4 + \beta_4 \times edu5 \\
+&+ \beta_5 \times ftcd\_score + \beta_6 \times hedonsum\_y\_pq1 + \beta_7 \times shaps\_score\_pq1 \\
+&+ \beta_8 \times mde\_curr1 + \beta_9 \times antidepmed1 + \beta_{10} \times log(NMR) \\
+&= 0.004 + 0.802 \times Var + 0.226 \times inc5 - 0.342 \times edu4 + 0.236 \times edu5 \\
+&- 0.169 \times ftcd\_score - 0.280 \times hedonsum\_y\_pq1 - 0.056 \times shaps\_score\_pq1 \\
+&- 0.046 \times mde\_curr1 + 0.237 \times antidepmed1 + 0.222 \times log(NMR)
+\end{aligned}
+$$
+
+The LASSO model achieved an AUC of 0.841 on the training set and 0.705 on the test set. Through its variable selection property, LASSO identified 10 key predictors. As shown in the variable importance plot, Varenicline treatment showed the strongest positive effect (coefficient = 0.802) on abstinence probability, followed by high income level (inc5: 0.226) and antidepressant medication use (0.237). Education levels showed mixed effects, with edu4 showing a negative association (-0.342) while edu5 showed a positive association (0.236). Clinical measures including ftcd_score (-0.169) and hedonsum_y_pq1 (-0.280) showed moderate negative associations with abstinence.
+
+
+```{r lasso_model, fig.width=10, fig.height=5}
+lambda_seq <- seq(0.001, 0.1, length.out = 100)
+lasso_model <- model_fit(X_train, Y_train, X_test, Y_test, alpha = 1, lambda_seq = lambda_seq)
+
+print(lasso_model$combined_plot)
+plot_variable_importance(lasso_model$coef_df)$plot
+
+ggsave("../Figures/lasso_model.png", plot = lasso_model$combined_plot, dpi = 300)
+ggsave("../Figures/lasso_variable_importance.png", plot = plot_variable_importance(lasso_model$coef_df)$plot, dpi = 300)
+
+```
+
+### Ridge Regression
+
+The Ridge regression with $\lambda = 0.100$ can be expressed as:
+
+$$
+\begin{aligned}
+logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times BA + \beta_3 \times age\_ps + \beta_4 \times sex\_ps2 \\
+&+ \beta_5 \times NHW1 + \beta_6 \times Black1 + \beta_7 \times Hisp1 \\
+&+ \beta_8 \times inc2 + \beta_9 \times inc3 + \beta_{10} \times inc4 + \beta_{11} \times inc5 \\
+&+ \beta_{12} \times edu2 + \beta_{13} \times edu3 + \beta_{14} \times edu4 + \beta_{15} \times edu5 \\
+&+ \beta_{16} \times ftcd\_score + \beta_{17} \times ftcd.5.mins + \beta_{18} \times bdi\_score\_w00 \\
+&+ \beta_{19} \times cpd\_ps + \beta_{20} \times crv\_total\_pq1 + \beta_{21} \times log(hedonsum\_n\_pq1) \\
+&+ \beta_{22} \times log(hedonsum\_y\_pq1) + \beta_{23} \times shaps\_score\_pq1 + \beta_{24} \times otherdiag1 \\
+&+ \beta_{25} \times antidepmed1 + \beta_{26} \times mde\_curr1 + \beta_{27} \times log(NMR) \\
+&+ \beta_{28} \times Only.Menthol1 + \beta_{29} \times readiness \\
+&= -0.382 + 0.740 \times Var - 0.106 \times BA + 0.007 \times age\_ps + 0.017 \times sex\_ps2 \\
+&+ 0.022 \times NHW1 + 0.009 \times Black1 + 0.534 \times Hisp1 \\
+&+ 0.131 \times inc2 + 0.141 \times inc3 - 0.069 \times inc4 + 0.470 \times inc5 \\
+&- 0.176 \times edu2 + 0.146 \times edu3 - 0.461 \times edu4 + 0.459 \times edu5 \\
+&- 0.139 \times ftcd\_score + 0.007 \times ftcd.5.mins + 0.002 \times bdi\_score\_w00 \\
+&+ 0.003 \times cpd\_ps - 0.024 \times crv\_total\_pq1 + 0.127 \times log(hedonsum\_n\_pq1) \\
+&- 0.336 \times log(hedonsum\_y\_pq1) - 0.062 \times shaps\_score\_pq1 + 0.036 \times otherdiag1 \\
+&+ 0.480 \times antidepmed1 - 0.299 \times mde\_curr1 + 0.372 \times log(NMR) \\
+&+ 0.377 \times Only.Menthol1 - 0.061 \times readiness
+\end{aligned}
+$$
+
+The Ridge model achieved a higher training AUC of 0.878 with a test AUC of 0.651. While retaining all variables, the variable importance plot reveals similar patterns to LASSO, with Varenicline treatment (0.740) and antidepressant medication use (0.480) showing the strongest positive associations with abstinence probability. Notably, Hispanic ethnicity also showed a strong positive association (0.534). Among clinical predictors, nicotine metabolism ratio (NMR: 0.372) and menthol cigarette use (0.377) showed moderate positive associations, while depression-related measures generally showed negative associations with abstinence probability.
+
+```{r ridge_model, fig.width=10, fig.height=5}
+lambda_seq <- seq(0.001, 0.1, length.out = 100)
+ridge_model <- model_fit(X_train, Y_train, X_test, Y_test, alpha = 0, lambda_seq = lambda_seq)
+
+print(ridge_model$combined_plot)
+plot_variable_importance(ridge_model$coef_df)$plot
+
+ggsave("../Figures/ridge_model.png", plot = ridge_model$combined_plot, dpi = 300)
+ggsave("../Figures/ridge_variable_importance.png", plot = plot_variable_importance(ridge_model$coef_df)$plot, dpi = 300)
+
+```
+
+The comparison of the Ridge model and the Lasso model is shown below. The table of coefficients are also included.
+
+```{r basic_model_comparison, echo=FALSE}
+combined_table <- full_join(ridge_model$coef_df, lasso_model$coef_df, by = "Variable") %>%
+  kable(
+    col.names = c("Variable", "Ridge Regression Model", "Lasso Regression Model"),
+    caption = "Comparison of Basic Ridge and Lasso Regression Models"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = FALSE, font_size = 8, latex_options = c("repeat_header", "HOLD_position")) %>%
+  column_spec(1, bold = TRUE)
+
+combined_table
+
+combined_result <- full_join(ridge_model$metrics, lasso_model$metrics, by = "Metric") %>%
+  kable(
+    col.names = c("Metric", "Ridge Regression Model", "Lasso Regression Model"),
+    caption = "Results of Basic Ridge and Lasso Regression Models"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = FALSE, font_size = 8, latex_options = c("repeat_header", "HOLD_position")) %>%
+  column_spec(1, bold = TRUE)
+
+combined_result
+```
+
+## Model with Interaction Terms
+
+Our investigation of interaction effects progressed through two stages, each guided by specific theoretical considerations.
+
+### Basic Interaction Model
+
+```{r}
+X_train_interactions <- model.matrix(
+ ~ BA + Var + 
+   # Demographic variables
+   age_ps + sex_ps + NHW + Black + Hisp + inc + edu +
+   # Clinical and smoking-related variables  
+   bdi_score_w00 + cpd_ps + ftcd_score + ftcd.5.mins +
+   shaps_score_pq1 + mde_curr + crv_total_pq1 + 
+   hedonsum_n_pq1 + hedonsum_y_pq1 + 
+   otherdiag + antidepmed + NMR + Only.Menthol + readiness + 
+   # BA interaction terms
+   BA:shaps_score_pq1 +   # BA * anhedonia 
+   BA:mde_curr +          # BA * current depression status
+   BA:bdi_score_w00 +     # BA * depression severity
+   # Varenicline interaction terms  
+   Var:ftcd_score +       # Varenicline * nicotine dependence
+   Var:cpd_ps +           # Varenicline * cigarettes per day
+   Var:readiness,         # Varenicline * readiness to quit
+ data = train_data %>% select(-abst))[, -1]
+
+X_test_interactions <- model.matrix(
+ ~ BA + Var + 
+   # Demographic variables
+   age_ps + sex_ps + NHW + Black + Hisp + inc + edu +
+   # Clinical and smoking-related variables
+   bdi_score_w00 + cpd_ps + ftcd_score + ftcd.5.mins +
+   shaps_score_pq1 + mde_curr + crv_total_pq1 + 
+   hedonsum_n_pq1 + hedonsum_y_pq1 + 
+   otherdiag + antidepmed + NMR + Only.Menthol + readiness + 
+   # BA interaction terms
+   BA:shaps_score_pq1 +   # BA * anhedonia
+   BA:mde_curr +          # BA * current depression status  
+   BA:bdi_score_w00 +     # BA * depression severity
+   # Varenicline interaction terms
+   Var:ftcd_score +       # Varenicline * nicotine dependence
+   Var:cpd_ps +           # Varenicline * cigarettes per day
+   Var:readiness,         # Varenicline * readiness to quit
+ data = test_data %>% select(-abst))[, -1]
+```
+
+In the basic interaction model, we focused on treatment-specific interactions that directly address our primary research questions about treatment effectiveness. For BA, we concentrated on its interaction with depression-related variables (mde_curr, bdi_score_w00, shaps_score_pq1) because BA was specifically designed to address depression symptoms, particularly anhedonia. The interaction between BA and current MDD status was included to test whether BA's effectiveness differs between current and past MDD patients. For Varenicline, we included interactions with smoking-related characteristics (ftcd_score, cpd_ps) and readiness to quit, as previous research suggests that pharmacotherapy effectiveness may vary with baseline smoking intensity and motivation levels.
+
+The elastic net model with $\alpha = 0.5$ and $\lambda = 0.069$ can be expressed as:
+
+$$
+\begin{aligned}
+logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times BA + \beta_3 \times ftcd\_score \\
+&+ \beta_4 \times antidepmed1 + \beta_5 \times hedonsum\_n\_pq1 + \beta_6 \times hedonsum\_y\_pq1 \\
+&+ \beta_7 \times shaps\_score\_pq1 + \beta_8 \times mde\_curr1 + \beta_9 \times NMR \\
+&+ \beta_{10} \times (BA \times mde\_curr1) + \beta_{11} \times (Var \times cpd\_ps) + \beta_{12} \times (Var \times readiness) \\
+&= -0.488 + 0.309 \times Var + 0.215 \times edu5 - 0.250 \times edu4 \\
+&+ 0.165 \times antidepmed1 - 0.149 \times ftcd\_score + 0.040 \times hedonsum\_n\_pq1 \\
+&- 0.193 \times hedonsum\_y\_pq1 - 0.039 \times shaps\_score\_pq1 - 0.021 \times mde\_curr1 \\
+&+ 0.122 \times NMR - 0.013 \times (BA \times mde\_curr1) + 0.021 \times (Var \times cpd\_ps) \\
+&+ 0.008 \times (Var \times readiness)
+\end{aligned}
+$$
+
+This initial interaction model achieved an AUC of 0.685 on the test set. The variable importance plot reveals that while Varenicline maintained its strong main effect (0.309), its effectiveness appeared to vary with baseline smoking characteristics. The positive interaction with cigarettes per day (0.021) suggests that Varenicline might be particularly effective for heavier smokers. The interaction between BA and current MDD status (-0.013) indicates a potentially reduced treatment effect for current MDD patients, highlighting the complexity of treating this subgroup.
+
+```{r basic_interaction_model, fig.width=10, fig.height=5}
+lambda_seq <- seq(0.001, 0.1, length.out = 100)
+basic_interaction_model <- model_fit(X_train_interactions, Y_train, X_test_interactions, Y_test, alpha = 0.5, lambda_seq = lambda_seq)
+
+print(basic_interaction_model$combined_plot)
+plot_variable_importance(basic_interaction_model$coef_df)$plot
+
+ggsave("../Figures/basic_interaction_model.png", plot = basic_interaction_model$combined_plot, dpi = 300)
+ggsave("../Figures/basic_interaction_variable_importance.png", plot = plot_variable_importance(basic_interaction_model$coef_df)$plot, dpi = 300)
+
+```
+
+### Advanced Interaction Model
+
+```{r}
+# Create model matrix with extended interaction terms
+X_train_interactions <- model.matrix(
+ ~ BA + Var + 
+   # Demographic variables
+   age_ps + sex_ps + NHW + Black + Hisp + inc + edu +
+   # Clinical and smoking-related variables
+   bdi_score_w00 + cpd_ps + ftcd_score + ftcd.5.mins +
+   shaps_score_pq1 + mde_curr + crv_total_pq1 + 
+   hedonsum_n_pq1 + hedonsum_y_pq1 + 
+   otherdiag + antidepmed + NMR + Only.Menthol + readiness + 
+   # BA interaction terms
+   BA:shaps_score_pq1 +   # BA * anhedonia
+   BA:mde_curr +          # BA * current depression status
+   BA:bdi_score_w00 +     # BA * depression severity
+   BA:Black +             # BA * race (Black)
+   BA:NHW +               # BA * race (Non-Hispanic White)
+   # Varenicline interaction terms
+   Var:ftcd_score +       # Varenicline * nicotine dependence
+   Var:cpd_ps +           # Varenicline * cigarettes per day
+   Var:readiness +        # Varenicline * readiness to quit
+   Var:Black +            # Varenicline * race (Black)
+   Var:NHW +              # Varenicline * race (Non-Hispanic White)
+   # Depression symptom interactions
+   bdi_score_w00:shaps_score_pq1 +  # Depression severity * anhedonia
+   mde_curr:shaps_score_pq1 +       # Current depression status * anhedonia
+   # Smoking behavior interactions
+   ftcd_score:cpd_ps +          # Nicotine dependence * cigarettes per day
+   ftcd_score:readiness +       # Nicotine dependence * readiness to quit
+   # Socioeconomic status interactions
+   antidepmed:inc +             # Antidepressant medication * income
+   edu:readiness +              # Education * readiness to quit
+   # Menthol cigarette interactions
+   Only.Menthol:ftcd_score +    # Menthol use * nicotine dependence
+   Only.Menthol:NMR,            # Menthol use * nicotine metabolism ratio
+ data = train_data %>% select(-abst))[, -1]
+
+X_test_interactions <- model.matrix(
+ ~ BA + Var + 
+   # Demographic variables
+   age_ps + sex_ps + NHW + Black + Hisp + inc + edu +
+   # Clinical and smoking-related variables
+   bdi_score_w00 + cpd_ps + ftcd_score + ftcd.5.mins +
+   shaps_score_pq1 + mde_curr + crv_total_pq1 + 
+   hedonsum_n_pq1 + hedonsum_y_pq1 + 
+   otherdiag + antidepmed + NMR + Only.Menthol + readiness + 
+   # BA interaction terms
+   BA:shaps_score_pq1 +   # BA * anhedonia
+   BA:mde_curr +          # BA * current depression status
+   BA:bdi_score_w00 +     # BA * depression severity
+   BA:Black +             # BA * race (Black)
+   BA:NHW +               # BA * race (Non-Hispanic White)
+   # Varenicline interaction terms
+   Var:ftcd_score +       # Varenicline * nicotine dependence
+   Var:cpd_ps +           # Varenicline * cigarettes per day
+   Var:readiness +        # Varenicline * readiness to quit
+   Var:Black +            # Varenicline * race (Black)
+   Var:NHW +              # Varenicline * race (Non-Hispanic White)
+   # Depression symptom interactions
+   bdi_score_w00:shaps_score_pq1 +  # Depression severity * anhedonia
+   mde_curr:shaps_score_pq1 +       # Current depression status * anhedonia
+   # Smoking behavior interactions
+   ftcd_score:cpd_ps +          # Nicotine dependence * cigarettes per day
+   ftcd_score:readiness +       # Nicotine dependence * readiness to quit
+   # Socioeconomic status interactions
+   antidepmed:inc +             # Antidepressant medication * income
+   edu:readiness +              # Education * readiness to quit
+   # Menthol cigarette interactions
+   Only.Menthol:ftcd_score +    # Menthol use * nicotine dependence
+   Only.Menthol:NMR,            # Menthol use * nicotine metabolism ratio
+ data = test_data %>% select(-abst))[, -1]
+```
+
+In the advanced interaction model, we expanded our investigation to include a broader set of theoretically meaningful interactions based on three key mechanisms. First, we considered interactions between depression symptoms (bdi_score_w00 × shaps_score_pq1) because the combination of high depression severity and anhedonia might create a particularly challenging scenario for smoking cessation. Second, we examined how smoking behavior characteristics might interact with quit motivation (ftcd_score × readiness), hypothesizing that high nicotine dependence might diminish the positive effect of quit motivation. Third, we investigated socioeconomic interactions (edu × readiness, inc × antidepmed) because education might influence how motivation translates to success, and medication effectiveness might vary by socioeconomic status due to differences in access to resources and support systems.
+
+The advanced interaction model with $\alpha = 0.5$ and $\lambda = 0.071$ can be expressed as:
+
+$$
+\begin{aligned}
+logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times inc5 + \beta_3 \times edu4 + \beta_4 \times edu5 \\
+&+ \beta_5 \times ftcd\_score + \beta_6 \times hedonsum\_n\_pq1 + \beta_7 \times hedonsum\_y\_pq1 \\
+&+ \beta_8 \times shaps\_score\_pq1 + \beta_9 \times antidepmed1 + \beta_{10} \times NMR \\
+&+ \beta_{11} \times (Var \times cpd\_ps) + \beta_{12} \times (Var \times readiness) \\
+&+ \beta_{13} \times (bdi\_score\_w00 \times shaps\_score\_pq1) + \beta_{14} \times (ftcd\_score \times readiness) \\
+&+ \beta_{15} \times (edu4 \times readiness) + \beta_{16} \times (inc3 \times antidepmed1) \\
+&= -0.430 + 0.242 \times Var + 0.244 \times inc5 - 0.206 \times edu4 + 0.138 \times edu5 \\
+&- 0.097 \times ftcd\_score + 0.046 \times hedonsum\_n\_pq1 - 0.156 \times hedonsum\_y\_pq1 \\
+&- 0.033 \times shaps\_score\_pq1 + 0.015 \times antidepmed1 + 0.149 \times NMR \\
+&+ 0.019 \times (Var \times cpd\_ps) + 0.017 \times (Var \times readiness) \\
+&+ 0.000 \times (bdi\_score\_w00 \times shaps\_score\_pq1) - 0.011 \times (ftcd\_score \times readiness) \\
+&- 0.014 \times (edu4 \times readiness) + 1.204 \times (inc3 \times antidepmed1)
+\end{aligned}
+$$
+
+This advanced model achieved the highest test set AUC of 0.711, suggesting that incorporating comprehensive interaction terms improved predictive performance. The variable importance plot revealed several noteworthy patterns. The most striking finding was the strong interaction between middle income level and antidepressant medication use (1.204), indicating substantial treatment effect heterogeneity across socioeconomic groups. Treatment-related interactions showed modest but meaningful effects, with Varenicline's effectiveness increasing with higher cigarettes per day (0.019) and readiness to quit (0.017). The model also captured important behavioral interactions, showing that higher nicotine dependence slightly reduced the benefit of quit readiness (-0.011), and that education level modified the effect of quit readiness (-0.014). Interestingly, the hypothesized interaction between depression severity and anhedonia showed minimal effect (0.000), suggesting that these symptoms might influence smoking cessation independently rather than synergistically.
+
+```{r advanced_interaction_model, fig.width=10, fig.height=5}
+lambda_seq <- seq(0.001, 0.1, length.out = 100)
+advanced_interaction_model <- model_fit(X_train_interactions, Y_train, X_test_interactions, Y_test, alpha = 0.5, lambda_seq = lambda_seq)
+
+print(advanced_interaction_model$combined_plot)
+plot_variable_importance(advanced_interaction_model$coef_df)$plot
+
+ggsave("../Figures/advanced_interaction_model.png", plot = advanced_interaction_model$combined_plot, dpi = 300)
+ggsave("../Figures/advanced_interaction_variable_importance.png", plot = plot_variable_importance(advanced_interaction_model$coef_df)$plot, dpi = 300)
+
+```
+
+```{r interaction_model_comparison}
+combined_table <- full_join(basic_interaction_model$coef_df, advanced_interaction_model$coef_df, by = "Variable") %>%
+  kable(
+    col.names = c("Variable", "Model with Basic Interaction Term", "Model with Advanced Interaction Terms"),
+    caption = "Comparison of Models with Interaction Terms"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = FALSE, font_size = 8, latex_options = c("repeat_header", "HOLD_position")) %>%
+  column_spec(1, bold = TRUE) # Make Variable column bold
+
+combined_table
+
+combined_result <- full_join(basic_interaction_model$metrics, advanced_interaction_model$metrics, by = "Metric") %>%
+  kable(
+    col.names = c("Metric", "Model with Basic Interaction Term", "Model with Advanced Interaction Terms"),
+    caption = "Results of Models with Interaction Terms"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), 
+                full_width = FALSE, font_size = 8, latex_options = c("repeat_header", "HOLD_position")) %>%
+  column_spec(1, bold = TRUE) # Make Metric column bold
+
+combined_result
+
+```
+
+# Discussion
+
+In this study, we employed a series of regularized regression models to investigate the effectiveness of behavioral activation and varenicline for smoking cessation among individuals with current or past MDD. Through progressively complex modeling approaches, from basic LASSO and Ridge regression to interaction models, we gained several key insights about treatment effects and their moderators.
+
+Our models consistently demonstrated good predictive performance, with test AUC values ranging from 0.651 to 0.711. The advanced interaction model achieved the highest predictive accuracy, suggesting the importance of considering treatment effect heterogeneity. However, the relatively small gap between training and test performance (AUC difference < 0.15) indicates that our models avoided severe overfitting, likely due to the effective regularization strategies employed.
+
+Regarding treatment effectiveness, varenicline emerged as a consistently strong predictor of smoking cessation across all models. The basic LASSO model identified a substantial positive effect (coefficient = 0.802), which remained robust even after accounting for various interactions. In contrast, behavioral activation showed more modest and variable effects. The lack of a strong main effect for BA in our models aligns with the previous trial findings where BASC did not outperform standard behavioral treatment.
+
+Importantly, our interaction models revealed significant treatment effect heterogeneity across different patient subgroups. For varenicline, the effectiveness appeared enhanced among heavier smokers (Var × cpd_ps: 0.019) and those with higher readiness to quit (Var × readiness: 0.017). These findings suggest that varenicline might be particularly beneficial for more severely dependent smokers who are motivated to quit. For BA, the negative interaction with current MDD status (BA × mde_curr: -0.013) indicates potentially reduced effectiveness among currently depressed patients, highlighting the challenges of treating this subgroup.
+
+The advanced interaction model uncovered important socioeconomic dimensions of treatment response. The strong positive interaction between middle income level and antidepressant medication use (inc3 × antidepmed: 1.204) suggests that the effectiveness of depression treatment might be significantly moderated by socioeconomic status. Additionally, the negative interaction between education level and quit readiness (edu4 × readiness: -0.014) implies that the translation of motivation into successful cessation might vary across educational backgrounds.
+
+Several limitations of our study should be noted. First, our analysis was constrained by the relatively small sample size (n=241 after removing missing values), which might have limited our ability to detect smaller interaction effects. Second, the 50-50 train-test split, while ensuring robust validation, reduced the data available for model training. Third, the binary nature of our outcome measure (7-day point prevalence abstinence) might not fully capture the complexity of smoking cessation trajectories. Fourth, our models did not account for potential time-varying effects of treatments or the dynamic nature of depression symptoms during the quit attempt.
+
+Future research should consider several directions. Larger sample sizes would enable more precise estimation of interaction effects and potentially reveal additional treatment effect moderators. Incorporating longitudinal measures of both smoking behavior and depression symptoms could provide insights into the temporal dynamics of treatment effects. Finally, more sophisticated modeling approaches, such as Bayesian methods or machine learning techniques, might better capture the complex relationships between patient characteristics and treatment outcomes.
+
+Despite these limitations, our findings have important clinical implications. The consistent effectiveness of varenicline, particularly among heavier smokers, supports its use as a first-line treatment. However, the variable effects of behavioral activation and the important role of socioeconomic factors suggest the need for more personalized treatment approaches. Clinicians should consider both clinical and socioeconomic factors when tailoring smoking cessation interventions for patients with MDD.
+
+# References
+
+1. Hitsman, Brian, George D. Papandonatos, Jacqueline K. Gollan, Mark D. Huffman, Raymond Niaura, David C. Mohr, Anna K. Veluz‐Wilkins, et al. “Efficacy and Safety of Combination Behavioral Activation for Smoking Cessation and Varenicline for Treating Tobacco Dependence among Individuals with Current or Past Major Depressive Disorder: A 2 × 2 Factorial, Randomized, Placebo‐controlled Trial.” Addiction 118, no. 9 (September 2023): 1710–25. https://doi.org/10.1111/add.16209.
+
+\newpage
+
+# Code Appendix
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+
+```
