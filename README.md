@@ -1,6 +1,6 @@
 # Analysis on the Cessation Effect on Smoking among Patients with MDD with the Combination Treatment of Behavioral Activation and Varenicline
 
-[View report here](Report/report.pdf)
+[View report here](Report/Report.pdf)
 
 ## Abstract
 
