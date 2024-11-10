@@ -10,12 +10,12 @@ This study investigates the effectiveness of behavioral activation and varenicli
 
 ### Model Performance
 
-| Model Type | Training AUC | Test AUC | Accuracy (Test) |
-|------------|-------------|-----------|-----------------|
-| LASSO | 0.841 | 0.705 | 0.808 |
-| Ridge | 0.878 | 0.651 | 0.800 |
-| Basic Interaction | 0.845 | 0.685 | 0.800 |
-| Advanced Interaction | 0.854 | 0.711 | 0.808 |
+| Model Type | Training AUC | Test AUC | Training Accuracy | Test Accuracy |
+|------------|-------------|-----------|-------------------|---------------|
+| LASSO | 0.841 | 0.705 | 0.818 | 0.808 |
+| Ridge | 0.878 | 0.651 | 0.835 | 0.800 |
+| Basic Interaction | 0.845 | 0.685 | 0.802 | 0.800 |
+| Advanced Interaction | 0.854 | 0.711 | 0.802 | 0.808 |
 
 ### Plots
 
