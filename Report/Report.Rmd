@@ -37,13 +37,15 @@ library(caret)
 
 # Introduction
 
-Major Depressive Disorder (MDD) and smoking exhibit a complex relationship, with individuals with MDD being more likely to smoke heavily, demonstrate higher nicotine dependence, and experience more severe withdrawal symptoms during quit attempts. While varenicline is an effective pharmacotherapy for smoking cessation, and Behavioral Activation (BA) has shown promise in treating depression-related symptoms, their combined effectiveness in treating smokers with MDD remains unclear. A previous randomized, placebo-controlled, 2×2 factorial trial comparing BA for smoking cessation (BASC) versus standard behavioral treatment (ST), with and without varenicline, found that BASC did not outperform ST in adult smokers with current or past MDD.
+Major Depressive Disorder (MDD) and smoking demonstrate a significant bidirectional relationship, with MDD patients showing higher probability of heavy smoking patterns, elevated nicotine dependence levels, and intensified withdrawal symptoms during cessation attempts. While previous studies have documented varenicline's effectiveness in smoking cessation treatment, and Behavioral Activation (BA) has emerged as a promising intervention for depression-related symptoms, we still lack comprehensive understanding of their combined therapeutic effects in treating smokers with MDD. In a recent randomized, placebo-controlled, 2×2 factorial trial comparing BA for smoking cessation (BASC) and standard behavioral treatment (ST), with and without varenicline administration, researchers found no significant advantage of BASC over ST in adult smokers with current or past MDD diagnosis.
 
-The present study aims to extend these findings by examining baseline variables as potential moderators of treatment effects and evaluating predictors of smoking abstinence, controlling for behavioral treatment and pharmacotherapy. We consider various potential moderators including depression-related factors (anhedonia, current MDD status, depression severity), smoking-related characteristics (nicotine dependence, cigarettes per day, readiness to quit), and demographic variables. Understanding these relationships could help identify which smokers with MDD might benefit most from particular treatment approaches, ultimately leading to more personalized and effective smoking cessation interventions for this high-risk population.
+In this report, we aim to extend the previous findings by analyzing the potential moderating effects of baseline variables on treatment outcomes and examining the predictive factors for smoking abstinence, while controlling for both behavioral intervention approaches and pharmacotherapy. We investigate multiple potential moderators, including depression-related variables (e.g., anhedonia severity, current MDD status, depression intensity), smoking-related characteristics (e.g., nicotine dependence level, daily cigarette consumption, cessation readiness), and demographic factors. Through this analysis, we expect to identify specific patient characteristics that may predict better responses to particular treatment approaches, ultimately contributing to the development of more individualized and effective smoking cessation strategies for this high-risk population.
 
 # Data
 
-The data contains 300 observations with 25 variables (including 1 id column) collected from a randomized, placebo-controlled, 2×2 factorial trial involving adult smokers with current or past major depressive disorder (MDD). After removing observations with missing values, our final analytical sample consisted of 241 participants.
+The dataset used in this analysis contains 300 observations with 25 variables (including 1 identification column) collected from a randomized, placebo-controlled, 2×2 factorial trial involving adult smokers diagnosed with current or past major depressive disorder (MDD). In order to ensure data quality and reliability of our analysis, we firstly conducted data preprocessing to handle missing values. After removing observations with incomplete records, our final analytical sample consisted of 241 participants.
+
+The data documented participants' demographic information, depression-related variables, and smoking-related characteristics measured at baseline, as well as their treatment assignment and outcomes. The participants were randomized to receive either Behavioral Activation for smoking cessation (BASC) or standard behavioral treatment (ST), combined with either varenicline or placebo, forming a 2×2 factorial design. The completion of treatment and follow-up assessments were carefully monitored throughout the trial period.
 
 ```{r load_data, echo=FALSE, include=FALSE}
 # Load the data
@@ -105,7 +107,7 @@ dim(data)
 
 ```
 
-Analysis of the baseline characteristics by treatment groups reveals several notable patterns. When comparing the varenicline and placebo groups, we observe a significant difference in abstinence rates (28% vs 8.4%, p < 0.001), indicating varenicline's potential effectiveness. However, other baseline characteristics were well-balanced between the pharmacotherapy groups, suggesting successful randomization. Similarly, when comparing behavioral activation (BA) and standard treatment groups, most characteristics were balanced, with the exception of antidepressant medication use (35% in BA group vs 19% in standard treatment group, p = 0.004).
+Analysis of the baseline characteristics by treatment groups reveals several distinctive patterns that need attention. When comparing the varenicline and placebo groups, we observe a substantial disparity in abstinence rates, with the varenicline group achieving 28% success compared to 8.4% in the placebo group (p < 0.001), indicating varenicline's potential therapeutic effectiveness. However, other baseline characteristics maintained balanced distributions between these pharmacotherapy groups, suggesting successful randomization. Similarly, when comparing behavioral activation (BA) and standard treatment groups, most characteristics were comparably distributed, with one notable exception: the proportion of participants using antidepressant medication differed significantly between groups (35% in BA group versus 19% in standard treatment group, p = 0.004).
 
 ```{r eda, echo=FALSE}
 summary_var1 <- tbl_summary(data %>% select(-id), by = Var, type = list(readiness ~ "continuous")) %>% 
@@ -126,7 +128,7 @@ kableExtra::kable_styling(font_size = 8, latex_options = c("repeat_header", "HOL
 
 ```
 
-Examination of correlations among continuous variables revealed several significant relationships. Notably, cigarettes per day (cpd_ps) showed a moderate positive correlation with FTCD score (r = 0.517, p < 0.001), which is expected as both measure aspects of smoking dependency. The Beck Depression Inventory score (bdi_score_w00) demonstrated negative correlations with both hedonic capacity measures (hedonsum_n_pq1 and hedonsum_y_pq1), suggesting that higher depression levels are associated with reduced pleasure experiences.
+In our examination of the relationships among continuous variables in the dataset, we identified several significant correlations that deserve attention. The daily cigarette consumption (cpd_ps) exhibited a moderate positive correlation with the Fagerström Test for Cigarette Dependence score (FTCD score) (r = 0.517, p < 0.001). This correlation aligns with theoretical expectations, as both measures are designed to assess different aspects of smoking dependency. Furthermore, we observed that the Beck Depression Inventory score (bdi_score_w00) was negatively correlated with both measures of hedonic capacity (hedonsum_n_pq1 and hedonsum_y_pq1), a finding that supports the established relationship between increased depression severity and diminished ability to experience pleasure.
 
 ```{r continuous_validation_check, echo=FALSE, fig.width=10, fig.height=5}
 continuous_vars <- data[, c("age_ps", "ftcd_score", "bdi_score_w00", "cpd_ps", "crv_total_pq1", "hedonsum_n_pq1", "hedonsum_y_pq1")]
@@ -138,9 +140,9 @@ corr_plot
 
 ```
 
-The distribution analysis of numeric variables revealed right-skewed patterns in several measures, particularly hedonsum_n_pq1, hedonsum_y_pq1, and NMR. To address this non-normality, we applied log transformations to these variables. The transformed distributions showed improved symmetry and reduced skewness, making them more suitable for our subsequent analyses. Other numeric variables, including age, FTCD score, and depression measures, showed approximately normal distributions and were kept in their original scale.
+Our distribution analysis of numeric variables in the dataset identified notable right-skewed patterns in several key measures, particularly in both hedonic capacity indices (hedonsum_n_pq1, hedonsum_y_pq1) and the nicotine metabolite ratio (NMR). To address these violations of normality assumptions, we implemented log transformations for the affected variables. Post-transformation examination revealed substantially improved symmetry and reduced skewness in these distributions, ensuring their suitability for subsequent statistical analyses. We found that the remaining numeric variables, including participant age, Fagerström Test for Cigarette Dependence score, and depression-related measures, demonstrated approximately normal distributions and were therefore retained in their original scale for analysis.
 
-```{r variable_distribution, echo=FALSE, fig.width=15, fig.height=8}
+```{r variable_distribution, echo=FALSE,message=FALSE, warning=FALSE, fig.width=15, fig.height=8}
 dist_numeric <- data %>%
   select(-id) %>%
   keep(is.numeric) %>% 
@@ -159,10 +161,8 @@ dist_cat <- data %>%
     geom_bar()+
     ggtitle("Distribution of Categorical Variables")
 
-dist_plot <- gridExtra::grid.arrange(dist_numeric, dist_cat, ncol = 2)
+gridExtra::grid.arrange(dist_numeric, dist_cat, ncol = 2)
 
-ggsave("../Figures/dist_plot.png", plot = dist_plot, dpi = 300)
-dist_plot
 
 ```
 
@@ -390,7 +390,11 @@ logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times inc5 + \beta
 \end{aligned}
 $$
 
-The LASSO model achieved an AUC of 0.841 on the training set and 0.705 on the test set. Through its variable selection property, LASSO identified 10 key predictors. As shown in the variable importance plot, Varenicline treatment showed the strongest positive effect (coefficient = 0.802) on abstinence probability, followed by high income level (inc5: 0.226) and antidepressant medication use (0.237). Education levels showed mixed effects, with edu4 showing a negative association (-0.342) while edu5 showed a positive association (0.236). Clinical measures including ftcd_score (-0.169) and hedonsum_y_pq1 (-0.280) showed moderate negative associations with abstinence.
+Our LASSO regression model demonstrated strong predictive performance, achieving an Area Under the Curve (AUC) of 0.841 on the training dataset and 0.705 on the test dataset. Through its inherent variable selection mechanism, the LASSO model identified 10 key predictors of smoking cessation success. 
+
+Among these predictors, varenicline treatment emerged as the most influential factor, showing the strongest positive effect (coefficient = 0.802) on abstinence probability. This coefficient indicates that varenicline administration increases the log-odds of abstinence by 0.802, which translates to an odds ratio of exp(0.802) = 2.23. In the social domain, we found that both high income level (inc5: coefficient = 0.226, odds ratio = exp(0.226) = 1.25) and antidepressant medication use (coefficient = 0.237, odds ratio = exp(0.237) = 1.27) were associated with increased likelihood of abstinence.
+
+The impact of education levels showed heterogeneous effects in our analysis. While edu4 demonstrated a negative association with abstinence (coefficient = -0.342, reducing odds by 29% as exp(-0.342) = 0.71), edu5 showed a positive relationship (coefficient = 0.236, increasing odds by 27% as exp(0.236) = 1.27). Regarding clinical measures, we observed moderate negative associations with abstinence: each unit increase in Fagerström Test score (ftcd_score) was associated with a 16% reduction in abstinence odds (coefficient = -0.169, odds ratio = exp(-0.169) = 0.84), and similarly, each unit increase in positive hedonic capacity (hedonsum_y_pq1) corresponded to a 24% decrease in abstinence odds (coefficient = -0.280, odds ratio = exp(-0.280) = 0.76).
 
 
 ```{r lasso_model, fig.width=10, fig.height=5}
@@ -432,7 +436,9 @@ logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times BA + \beta_3
 \end{aligned}
 $$
 
-The Ridge model achieved a higher training AUC of 0.878 with a test AUC of 0.651. While retaining all variables, the variable importance plot reveals similar patterns to LASSO, with Varenicline treatment (0.740) and antidepressant medication use (0.480) showing the strongest positive associations with abstinence probability. Notably, Hispanic ethnicity also showed a strong positive association (0.534). Among clinical predictors, nicotine metabolism ratio (NMR: 0.372) and menthol cigarette use (0.377) showed moderate positive associations, while depression-related measures generally showed negative associations with abstinence probability.
+The Ridge regression model demonstrated stronger performance on the training set with an AUC of 0.878, though its test set performance (AUC = 0.651) was slightly lower than the LASSO model. While Ridge regression retains all variables in the model, the variable importance analysis revealed patterns similar to our LASSO findings, with varenicline treatment emerging as one of the strongest positive predictors (coefficient = 0.740, odds ratio = exp(0.740) = 2.10). Notably, both antidepressant medication use (coefficient = 0.480, odds ratio = exp(0.480) = 1.62) and Hispanic ethnicity (coefficient = 0.534, odds ratio = exp(0.534) = 1.71) showed substantial positive associations with abstinence outcomes.
+
+Among the clinical predictors, we observed moderate positive associations for both nicotine metabolism ratio (NMR: coefficient = 0.372, increasing odds by 45% as exp(0.372) = 1.45) and menthol cigarette use (coefficient = 0.377, increasing odds by 46% as exp(0.377) = 1.46). In contrast, depression-related measures demonstrated consistent negative associations with abstinence probability. Specifically, current MDD status decreased the odds of abstinence by 26% (coefficient = -0.299, odds ratio = exp(-0.299) = 0.74), and higher scores on the positive hedonic capacity measure (hedonsum_y_pq1) were associated with reduced odds of abstinence by 28% (coefficient = -0.336, odds ratio = exp(-0.336) = 0.72).
 
 ```{r ridge_model, fig.width=10, fig.height=5}
 lambda_seq <- seq(0.001, 0.1, length.out = 100)
@@ -518,7 +524,9 @@ X_test_interactions <- model.matrix(
  data = test_data %>% select(-abst))[, -1]
 ```
 
-In the basic interaction model, we focused on treatment-specific interactions that directly address our primary research questions about treatment effectiveness. For BA, we concentrated on its interaction with depression-related variables (mde_curr, bdi_score_w00, shaps_score_pq1) because BA was specifically designed to address depression symptoms, particularly anhedonia. The interaction between BA and current MDD status was included to test whether BA's effectiveness differs between current and past MDD patients. For Varenicline, we included interactions with smoking-related characteristics (ftcd_score, cpd_ps) and readiness to quit, as previous research suggests that pharmacotherapy effectiveness may vary with baseline smoking intensity and motivation levels.
+In constructing our basic interaction model, we prioritized the examination of treatment-specific interactions that aligned with our primary research objectives regarding treatment effectiveness. For Behavioral Activation (BA), we specifically focused on its interactions with depression-related variables, including current MDD status (mde_curr), Beck Depression Inventory score (bdi_score_w00), and Snaith-Hamilton Pleasure Scale score (shaps_score_pq1). This selection was theoretically driven, as BA was explicitly designed to target depression symptoms, with particular emphasis on addressing anhedonic symptoms. Additionally, we incorporated the interaction between BA and current MDD status to evaluate whether BA's therapeutic effectiveness varies between patients with current versus past MDD diagnoses.
+
+Meanwhile, our analysis of varenicline interactions concentrated on smoking-related characteristics, specifically the Fagerström Test score (ftcd_score), cigarettes per day (cpd_ps), and readiness to quit measures. This selection was informed by previous research findings suggesting that pharmacotherapy outcomes may be moderated by baseline smoking intensity and motivational factors. These interaction terms were essential for understanding the differential effects of varenicline across varying levels of nicotine dependence and quit motivation.
 
 The elastic net model with $\alpha = 0.5$ and $\lambda = 0.069$ can be expressed as:
 
@@ -536,7 +544,9 @@ logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times BA + \beta_3
 \end{aligned}
 $$
 
-This initial interaction model achieved an AUC of 0.685 on the test set. The variable importance plot reveals that while Varenicline maintained its strong main effect (0.309), its effectiveness appeared to vary with baseline smoking characteristics. The positive interaction with cigarettes per day (0.021) suggests that Varenicline might be particularly effective for heavier smokers. The interaction between BA and current MDD status (-0.013) indicates a potentially reduced treatment effect for current MDD patients, highlighting the complexity of treating this subgroup.
+Our initial interaction model demonstrated moderate predictive performance, achieving an AUC of 0.685 on the test dataset. The variable importance analysis revealed that varenicline maintained its position as a strong predictor, showing a substantial main effect (coefficient = 0.309) that increased the base odds of abstinence by exp(0.309) = 1.36 times. However, we found that varenicline's effectiveness exhibited variation across different baseline smoking characteristics. Particularly noteworthy was the positive interaction with daily cigarette consumption (coefficient = 0.021, odds ratio = exp(0.021) = 1.02), indicating an enhanced treatment effect with higher baseline smoking intensity. To illustrate, for participants reporting 20 cigarettes per day, varenicline's effectiveness showed an enhancement factor of exp(0.021 * 20) = 1.52 compared to its baseline effect.
+
+In examining behavioral treatment interactions, we observed that the relationship between Behavioral Activation (BA) and current MDD status revealed a subtle but important pattern. The negative interaction coefficient (-0.013) suggests that for patients with current MDD, BA's effectiveness was marginally reduced (odds ratio = exp(-0.013) = 0.987, approximately 1.3% reduction in abstinence odds). This finding underscores the particular challenges in treating this specific patient subgroup. Additionally, our analysis revealed that educational level served as a significant moderator of treatment effectiveness, with contrasting effects observed at different levels: edu4 was associated with reduced odds of abstinence (coefficient = -0.250, odds ratio = exp(-0.250) = 0.779, representing a 22.1% reduction), while edu5 showed increased odds (coefficient = 0.215, odds ratio = exp(0.215) = 1.24, indicating a 24% increase).
 
 ```{r basic_interaction_model, fig.width=10, fig.height=5}
 lambda_seq <- seq(0.001, 0.1, length.out = 100)
@@ -581,7 +591,7 @@ X_train_interactions <- model.matrix(
    # Smoking behavior interactions
    ftcd_score:cpd_ps +          # Nicotine dependence * cigarettes per day
    ftcd_score:readiness +       # Nicotine dependence * readiness to quit
-   # Socioeconomic status interactions
+   # social status interactions
    antidepmed:inc +             # Antidepressant medication * income
    edu:readiness +              # Education * readiness to quit
    # Menthol cigarette interactions
@@ -616,7 +626,7 @@ X_test_interactions <- model.matrix(
    # Smoking behavior interactions
    ftcd_score:cpd_ps +          # Nicotine dependence * cigarettes per day
    ftcd_score:readiness +       # Nicotine dependence * readiness to quit
-   # Socioeconomic status interactions
+   # social status interactions
    antidepmed:inc +             # Antidepressant medication * income
    edu:readiness +              # Education * readiness to quit
    # Menthol cigarette interactions
@@ -625,7 +635,9 @@ X_test_interactions <- model.matrix(
  data = test_data %>% select(-abst))[, -1]
 ```
 
-In the advanced interaction model, we expanded our investigation to include a broader set of theoretically meaningful interactions based on three key mechanisms. First, we considered interactions between depression symptoms (bdi_score_w00 × shaps_score_pq1) because the combination of high depression severity and anhedonia might create a particularly challenging scenario for smoking cessation. Second, we examined how smoking behavior characteristics might interact with quit motivation (ftcd_score × readiness), hypothesizing that high nicotine dependence might diminish the positive effect of quit motivation. Third, we investigated socioeconomic interactions (edu × readiness, inc × antidepmed) because education might influence how motivation translates to success, and medication effectiveness might vary by socioeconomic status due to differences in access to resources and support systems.
+In developing our advanced interaction model, we expanded the scope of our analysis to incorporate a more comprehensive set of theoretically grounded interactions, focusing on three fundamental mechanisms. Firstly, we investigated the interaction between depression symptoms, specifically examining the relationship between Beck Depression Inventory score and Snaith-Hamilton Pleasure Scale score (bdi_score_w00 × shaps_score_pq1). This interaction was selected based on the hypothesis that concurrent presence of severe depression and pronounced anhedonia might create uniquely challenging conditions for achieving smoking cessation.
+
+Secondly, we examined potential interactions between smoking behavior characteristics and quit motivation (ftcd_score × readiness). This investigation was driven by the theoretical premise that elevated levels of nicotine dependence, as measured by the Fagerström Test score, might attenuate the typically positive influence of quit motivation on cessation outcomes. Finally, we explored social interactions, particularly focusing on education level's interaction with quit readiness (edu × readiness) and income level's interaction with antidepressant medication use (inc × antidepmed). These interactions were chosen to investigate how educational background might moderate the translation of motivation into successful cessation, and how social factors might influence medication effectiveness through differential access to healthcare resources and support systems.
 
 The advanced interaction model with $\alpha = 0.5$ and $\lambda = 0.071$ can be expressed as:
 
@@ -646,7 +658,11 @@ logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times inc5 + \beta
 \end{aligned}
 $$
 
-This advanced model achieved the highest test set AUC of 0.711, suggesting that incorporating comprehensive interaction terms improved predictive performance. The variable importance plot revealed several noteworthy patterns. The most striking finding was the strong interaction between middle income level and antidepressant medication use (1.204), indicating substantial treatment effect heterogeneity across socioeconomic groups. Treatment-related interactions showed modest but meaningful effects, with Varenicline's effectiveness increasing with higher cigarettes per day (0.019) and readiness to quit (0.017). The model also captured important behavioral interactions, showing that higher nicotine dependence slightly reduced the benefit of quit readiness (-0.011), and that education level modified the effect of quit readiness (-0.014). Interestingly, the hypothesized interaction between depression severity and anhedonia showed minimal effect (0.000), suggesting that these symptoms might influence smoking cessation independently rather than synergistically.
+Our advanced interaction model demonstrated superior predictive performance, achieving the highest test set Area Under the Curve (AUC) of 0.711. This improvement in predictive accuracy suggests that the incorporation of comprehensive interaction terms successfully captured important complex relationships in the data. The variable importance analysis revealed several notable interaction patterns that warrant detailed examination.
+
+The most prominent finding emerged from the social domain, where we observed a strong interaction between middle income level and antidepressant medication use (coefficient = 1.204, odds ratio = exp(1.204) = 3.33). This substantial effect indicates that participants in the middle income group experienced more than triple the effectiveness from antidepressant medication compared to other income groups. Treatment-related interactions also demonstrated meaningful patterns: varenicline's effectiveness showed positive interaction with both daily cigarette consumption (coefficient = 0.019, odds ratio per cigarette = exp(0.019) = 1.019) and readiness to quit (coefficient = 0.017, odds ratio per unit = exp(0.017) = 1.017). To illustrate, for participants smoking 20 cigarettes per day, the varenicline treatment effect was enhanced by a factor of exp(0.019 * 20) = 1.46.
+
+The model additionally captured significant behavioral interactions that provide insights into treatment mechanisms. We found that increased nicotine dependence slightly attenuated the benefit of quit readiness (coefficient = -0.011, odds ratio = exp(-0.011) = 0.989 per unit increase in dependence score). Similarly, educational background emerged as a modifier of quit readiness effects, with edu4 level showing a modest negative interaction (coefficient = -0.014, odds ratio = exp(-0.014) = 0.986 per unit increase in readiness score). These findings suggest that both nicotine dependence and educational background influence how effectively quit motivation translates into successful abstinence outcomes.
 
 ```{r advanced_interaction_model, fig.width=10, fig.height=5}
 lambda_seq <- seq(0.001, 0.1, length.out = 100)
@@ -689,19 +705,21 @@ combined_result
 
 In this study, we employed a series of regularized regression models to investigate the effectiveness of behavioral activation and varenicline for smoking cessation among individuals with current or past MDD. Through progressively complex modeling approaches, from basic LASSO and Ridge regression to interaction models, we gained several key insights about treatment effects and their moderators.
 
-Our models consistently demonstrated good predictive performance, with test AUC values ranging from 0.651 to 0.711. The advanced interaction model achieved the highest predictive accuracy, suggesting the importance of considering treatment effect heterogeneity. However, the relatively small gap between training and test performance (AUC difference < 0.15) indicates that our models avoided severe overfitting, likely due to the effective regularization strategies employed.
+Our analytical models demonstrated consistently robust predictive performance, with test AUC values ranging from 0.651 to 0.711. The advanced interaction model achieved the highest predictive accuracy, highlighting the importance of considering treatment effect heterogeneity in our analysis. Notably, the relatively small gap between training and test performance (AUC difference < 0.15) suggests our models successfully avoided severe overfitting, which we attribute to the effective implementation of regularization strategies.
 
-Regarding treatment effectiveness, varenicline emerged as a consistently strong predictor of smoking cessation across all models. The basic LASSO model identified a substantial positive effect (coefficient = 0.802), which remained robust even after accounting for various interactions. In contrast, behavioral activation showed more modest and variable effects. The lack of a strong main effect for BA in our models aligns with the previous trial findings where BASC did not outperform standard behavioral treatment.
+Regarding treatment effectiveness, varenicline emerged as a consistently strong predictor of smoking cessation success across all model specifications. The basic LASSO model identified a substantial positive effect (coefficient = 0.802), which maintained its robustness even after accounting for various interaction terms. In contrast, behavioral activation demonstrated more modest and variable effects, with the lack of a strong main effect aligning with previous trial findings where BASC showed no significant advantage over standard behavioral treatment.
 
-Importantly, our interaction models revealed significant treatment effect heterogeneity across different patient subgroups. For varenicline, the effectiveness appeared enhanced among heavier smokers (Var × cpd_ps: 0.019) and those with higher readiness to quit (Var × readiness: 0.017). These findings suggest that varenicline might be particularly beneficial for more severely dependent smokers who are motivated to quit. For BA, the negative interaction with current MDD status (BA × mde_curr: -0.013) indicates potentially reduced effectiveness among currently depressed patients, highlighting the challenges of treating this subgroup.
+Our interaction models revealed significant heterogeneity in treatment effects across different patient subgroups. For varenicline, we observed enhanced effectiveness among heavier smokers (Var × cpd_ps: 0.019) and participants with higher readiness to quit (Var × readiness: 0.017), suggesting particular benefit for more severely dependent smokers who demonstrate strong quit motivation. For behavioral activation, the negative interaction with current MDD status (BA × mde_curr: -0.013) indicated potentially reduced effectiveness among currently depressed patients, underscoring the challenges in treating this specific subgroup.
 
-The advanced interaction model uncovered important socioeconomic dimensions of treatment response. The strong positive interaction between middle income level and antidepressant medication use (inc3 × antidepmed: 1.204) suggests that the effectiveness of depression treatment might be significantly moderated by socioeconomic status. Additionally, the negative interaction between education level and quit readiness (edu4 × readiness: -0.014) implies that the translation of motivation into successful cessation might vary across educational backgrounds.
+The advanced interaction model uncovered important social dimensions of treatment response. We identified a strong positive interaction between middle income level and antidepressant medication use (inc3 × antidepmed: 1.204), suggesting significant social moderation of depression treatment effectiveness. Additionally, the negative interaction between education level and quit readiness (edu4 × readiness: -0.014) indicated that the translation of quit motivation into successful cessation varies across educational backgrounds.
 
-Several limitations of our study should be noted. First, our analysis was constrained by the relatively small sample size (n=241 after removing missing values), which might have limited our ability to detect smaller interaction effects. Second, the 50-50 train-test split, while ensuring robust validation, reduced the data available for model training. Third, the binary nature of our outcome measure (7-day point prevalence abstinence) might not fully capture the complexity of smoking cessation trajectories. Fourth, our models did not account for potential time-varying effects of treatments or the dynamic nature of depression symptoms during the quit attempt.
+Several limitations should be noted in our analysis. First, our relatively small sample size (n=241 after removing missing values) may have limited our ability to detect smaller interaction effects. Second, our binary outcome measure (7-day point prevalence abstinence) may not fully capture the complexity of smoking cessation trajectories. Third, our models did not account for potential time-varying treatment effects or the dynamic nature of depression symptoms during quit attempts.
 
-Future research should consider several directions. Larger sample sizes would enable more precise estimation of interaction effects and potentially reveal additional treatment effect moderators. Incorporating longitudinal measures of both smoking behavior and depression symptoms could provide insights into the temporal dynamics of treatment effects. Finally, more sophisticated modeling approaches, such as Bayesian methods or machine learning techniques, might better capture the complex relationships between patient characteristics and treatment outcomes.
+Future research directions should address several key areas. Larger sample sizes would enable more precise estimation of interaction effects and potentially reveal additional treatment effect moderators. The incorporation of longitudinal measures for both smoking behavior and depression symptoms could provide valuable insights into temporal dynamics of treatment effects. Additionally, more sophisticated modeling approaches, such as Bayesian methods or advanced machine learning techniques, might better capture the complex relationships between patient characteristics and treatment outcomes.
 
-Despite these limitations, our findings have important clinical implications. The consistent effectiveness of varenicline, particularly among heavier smokers, supports its use as a first-line treatment. However, the variable effects of behavioral activation and the important role of socioeconomic factors suggest the need for more personalized treatment approaches. Clinicians should consider both clinical and socioeconomic factors when tailoring smoking cessation interventions for patients with MDD.
+Despite these limitations, our findings yield important clinical implications. The consistent effectiveness of varenicline, particularly among heavier smokers, supports its continued use as a first-line treatment. However, the variable effects of behavioral activation and the significant role of social factors suggest the need for more personalized treatment approaches. Clinicians should carefully consider both clinical and social factors when developing smoking cessation interventions for patients with MDD.
+
+\newpage
 
 # References
 
