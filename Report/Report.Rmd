@@ -35,6 +35,10 @@ library(caret)
 
 ```
 
+# Abstract
+
+Major Depressive Disorder (MDD) and smoking share a strong bidirectional relationship, yet the effectiveness of combined behavioral and pharmacological interventions remains incompletely understood. This study analyzed data from 241 adult smokers with current or past MDD in a 2×2 factorial trial comparing Behavioral Activation for smoking cessation (BASC) versus standard treatment (ST), with and without varenicline. Using regularized regression approaches incorporating interaction terms, we examined relationships between smoking abstinence and baseline characteristics. Our advanced interaction model achieved superior predictive accuracy and revealed significant treatment effect heterogeneity. Varenicline emerged as the strongest predictor of cessation success, with enhanced effectiveness among heavier smokers and those with higher quit readiness. Social factors emerged as important moderators, particularly the interaction between income level and antidepressant medication use. These findings suggest the need for more personalized treatment approaches that consider both clinical and socioeconomic factors when developing smoking cessation interventions for this high-risk population.
+
 # Introduction
 
 Major Depressive Disorder (MDD) and smoking demonstrate a significant bidirectional relationship, with MDD patients showing higher probability of heavy smoking patterns, elevated nicotine dependence levels, and intensified withdrawal symptoms during cessation attempts. While previous studies have documented varenicline's effectiveness in smoking cessation treatment, and Behavioral Activation (BA) has emerged as a promising intervention for depression-related symptoms, we still lack comprehensive understanding of their combined therapeutic effects in treating smokers with MDD. In a recent randomized, placebo-controlled, 2×2 factorial trial comparing BA for smoking cessation (BASC) and standard behavioral treatment (ST), with and without varenicline administration, researchers found no significant advantage of BASC over ST in adult smokers with current or past MDD diagnosis.
@@ -186,51 +190,6 @@ dist_after_log
 
 ```
 
-# Methods
-
-In this study, we employed three regularized regression approaches - LASSO (L1), Ridge (L2), and Elastic Net regularization - to analyze the moderators and predictors of smoking cessation outcomes.
-
-Given our binary outcome of smoking abstinence ($y$), we used logistic regression with different regularization terms. The basic form of our logistic regression model is:
-
-$$
-P(y = 1|X) = \frac{1}{1 + e^{-X\beta}}
-$$
-
-where $X$ represents our predictor variables and $\beta$ represents the coefficients.
-
-## LASSO (L1) Regularization
-
-LASSO (Least Absolute Shrinkage and Selection Operator) adds an L1 penalty term to the log-likelihood function:
-
-$$
-\hat{\beta}_{LASSO} = \underset{\beta}{\operatorname{argmin}} \{-l(\beta) + \lambda\sum_{j=1}^{p}|\beta_j|\}
-$$
-
-where $l(\beta)$ is the log-likelihood and $\lambda$ is the regularization parameter. The L1 penalty encourages sparsity by shrinking some coefficients exactly to zero, effectively performing variable selection.
-
-## Ridge (L2) Regularization
-Ridge regression uses an L2 penalty term:
-
-$$
-\hat{\beta}_{Ridge} = \underset{\beta}{\operatorname{argmin}} \{-l(\beta) + \lambda\sum_{j=1}^{p}\beta_j^2\}
-$$
-
-The L2 penalty shrinks coefficients toward zero but rarely sets them exactly to zero. This approach is particularly useful when dealing with correlated predictors.
-
-## Elastic Net
-
-Elastic Net combines both L1 and L2 penalties:
-
-$$
-\hat{\beta}_{ElasticNet} = \underset{\beta}{\operatorname{argmin}} \{-l(\beta) + \lambda(\alpha\sum_{j=1}^{p}|\beta_j| + (1-\alpha)\sum_{j=1}^{p}\beta_j^2)\}
-$$
-
-where $\alpha$ controls the mix between L1 and L2 penalties ($\alpha = 1$ gives LASSO, $\alpha = 0$ gives Ridge). This combination allows for both variable selection and handling of correlated predictors.
-
-## Model Implementation
-
-We implemented these models using the glmnet package in R, with cross-validation to select the optimal $\lambda$ value. For the Elastic Net model, we set $\alpha = 0.5$ to give equal weight to L1 and L2 penalties. The models were evaluated using AUC and accuracy metrics on both training and test sets, with the data split in a 50:50 ratio to ensure robust validation of our findings.
-
 # Regresssion Analysis
 
 ## Basic Models
@@ -241,7 +200,7 @@ We first implemented two fundamental regularized regression models (Ridge and LA
 # Split the data
 set.seed(123)
 
-train_index <- createDataPartition(data$abst, p = 0.5, list = FALSE)
+train_index <- createDataPartition(data$abst, p = 0.8, list = FALSE)
 
 train_data <- data[train_index, ] %>% select(-id)
 test_data <- data[-train_index, ] %>% select(-id)
@@ -377,19 +336,6 @@ plot_variable_importance <- function(coef_df) {
 
 ### Lasso Regression
 
-The LASSO regression with $\lambda = 0.033$ can be expressed as:
-
-$$
-\begin{aligned}
-logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times inc5 + \beta_3 \times edu4 + \beta_4 \times edu5 \\
-&+ \beta_5 \times ftcd\_score + \beta_6 \times hedonsum\_y\_pq1 + \beta_7 \times shaps\_score\_pq1 \\
-&+ \beta_8 \times mde\_curr1 + \beta_9 \times antidepmed1 + \beta_{10} \times log(NMR) \\
-&= 0.004 + 0.802 \times Var + 0.226 \times inc5 - 0.342 \times edu4 + 0.236 \times edu5 \\
-&- 0.169 \times ftcd\_score - 0.280 \times hedonsum\_y\_pq1 - 0.056 \times shaps\_score\_pq1 \\
-&- 0.046 \times mde\_curr1 + 0.237 \times antidepmed1 + 0.222 \times log(NMR)
-\end{aligned}
-$$
-
 Our LASSO regression model demonstrated strong predictive performance, achieving an Area Under the Curve (AUC) of 0.841 on the training dataset and 0.705 on the test dataset. Through its inherent variable selection mechanism, the LASSO model identified 10 key predictors of smoking cessation success. 
 
 Among these predictors, varenicline treatment emerged as the most influential factor, showing the strongest positive effect (coefficient = 0.802) on abstinence probability. This coefficient indicates that varenicline administration increases the log-odds of abstinence by 0.802, which translates to an odds ratio of exp(0.802) = 2.23. In the social domain, we found that both high income level (inc5: coefficient = 0.226, odds ratio = exp(0.226) = 1.25) and antidepressant medication use (coefficient = 0.237, odds ratio = exp(0.237) = 1.27) were associated with increased likelihood of abstinence.
@@ -410,31 +356,6 @@ ggsave("../Figures/lasso_variable_importance.png", plot = plot_variable_importan
 ```
 
 ### Ridge Regression
-
-The Ridge regression with $\lambda = 0.100$ can be expressed as:
-
-$$
-\begin{aligned}
-logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times BA + \beta_3 \times age\_ps + \beta_4 \times sex\_ps2 \\
-&+ \beta_5 \times NHW1 + \beta_6 \times Black1 + \beta_7 \times Hisp1 \\
-&+ \beta_8 \times inc2 + \beta_9 \times inc3 + \beta_{10} \times inc4 + \beta_{11} \times inc5 \\
-&+ \beta_{12} \times edu2 + \beta_{13} \times edu3 + \beta_{14} \times edu4 + \beta_{15} \times edu5 \\
-&+ \beta_{16} \times ftcd\_score + \beta_{17} \times ftcd.5.mins + \beta_{18} \times bdi\_score\_w00 \\
-&+ \beta_{19} \times cpd\_ps + \beta_{20} \times crv\_total\_pq1 + \beta_{21} \times log(hedonsum\_n\_pq1) \\
-&+ \beta_{22} \times log(hedonsum\_y\_pq1) + \beta_{23} \times shaps\_score\_pq1 + \beta_{24} \times otherdiag1 \\
-&+ \beta_{25} \times antidepmed1 + \beta_{26} \times mde\_curr1 + \beta_{27} \times log(NMR) \\
-&+ \beta_{28} \times Only.Menthol1 + \beta_{29} \times readiness \\
-&= -0.382 + 0.740 \times Var - 0.106 \times BA + 0.007 \times age\_ps + 0.017 \times sex\_ps2 \\
-&+ 0.022 \times NHW1 + 0.009 \times Black1 + 0.534 \times Hisp1 \\
-&+ 0.131 \times inc2 + 0.141 \times inc3 - 0.069 \times inc4 + 0.470 \times inc5 \\
-&- 0.176 \times edu2 + 0.146 \times edu3 - 0.461 \times edu4 + 0.459 \times edu5 \\
-&- 0.139 \times ftcd\_score + 0.007 \times ftcd.5.mins + 0.002 \times bdi\_score\_w00 \\
-&+ 0.003 \times cpd\_ps - 0.024 \times crv\_total\_pq1 + 0.127 \times log(hedonsum\_n\_pq1) \\
-&- 0.336 \times log(hedonsum\_y\_pq1) - 0.062 \times shaps\_score\_pq1 + 0.036 \times otherdiag1 \\
-&+ 0.480 \times antidepmed1 - 0.299 \times mde\_curr1 + 0.372 \times log(NMR) \\
-&+ 0.377 \times Only.Menthol1 - 0.061 \times readiness
-\end{aligned}
-$$
 
 The Ridge regression model demonstrated stronger performance on the training set with an AUC of 0.878, though its test set performance (AUC = 0.651) was slightly lower than the LASSO model. While Ridge regression retains all variables in the model, the variable importance analysis revealed patterns similar to our LASSO findings, with varenicline treatment emerging as one of the strongest positive predictors (coefficient = 0.740, odds ratio = exp(0.740) = 2.10). Notably, both antidepressant medication use (coefficient = 0.480, odds ratio = exp(0.480) = 1.62) and Hispanic ethnicity (coefficient = 0.534, odds ratio = exp(0.534) = 1.71) showed substantial positive associations with abstinence outcomes.
 
@@ -527,22 +448,6 @@ X_test_interactions <- model.matrix(
 In constructing our basic interaction model, we prioritized the examination of treatment-specific interactions that aligned with our primary research objectives regarding treatment effectiveness. For Behavioral Activation (BA), we specifically focused on its interactions with depression-related variables, including current MDD status (mde_curr), Beck Depression Inventory score (bdi_score_w00), and Snaith-Hamilton Pleasure Scale score (shaps_score_pq1). This selection was theoretically driven, as BA was explicitly designed to target depression symptoms, with particular emphasis on addressing anhedonic symptoms. Additionally, we incorporated the interaction between BA and current MDD status to evaluate whether BA's therapeutic effectiveness varies between patients with current versus past MDD diagnoses.
 
 Meanwhile, our analysis of varenicline interactions concentrated on smoking-related characteristics, specifically the Fagerström Test score (ftcd_score), cigarettes per day (cpd_ps), and readiness to quit measures. This selection was informed by previous research findings suggesting that pharmacotherapy outcomes may be moderated by baseline smoking intensity and motivational factors. These interaction terms were essential for understanding the differential effects of varenicline across varying levels of nicotine dependence and quit motivation.
-
-The elastic net model with $\alpha = 0.5$ and $\lambda = 0.069$ can be expressed as:
-
-$$
-\begin{aligned}
-logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times BA + \beta_3 \times ftcd\_score \\
-&+ \beta_4 \times antidepmed1 + \beta_5 \times hedonsum\_n\_pq1 + \beta_6 \times hedonsum\_y\_pq1 \\
-&+ \beta_7 \times shaps\_score\_pq1 + \beta_8 \times mde\_curr1 + \beta_9 \times NMR \\
-&+ \beta_{10} \times (BA \times mde\_curr1) + \beta_{11} \times (Var \times cpd\_ps) + \beta_{12} \times (Var \times readiness) \\
-&= -0.488 + 0.309 \times Var + 0.215 \times edu5 - 0.250 \times edu4 \\
-&+ 0.165 \times antidepmed1 - 0.149 \times ftcd\_score + 0.040 \times hedonsum\_n\_pq1 \\
-&- 0.193 \times hedonsum\_y\_pq1 - 0.039 \times shaps\_score\_pq1 - 0.021 \times mde\_curr1 \\
-&+ 0.122 \times NMR - 0.013 \times (BA \times mde\_curr1) + 0.021 \times (Var \times cpd\_ps) \\
-&+ 0.008 \times (Var \times readiness)
-\end{aligned}
-$$
 
 Our initial interaction model demonstrated moderate predictive performance, achieving an AUC of 0.685 on the test dataset. The variable importance analysis revealed that varenicline maintained its position as a strong predictor, showing a substantial main effect (coefficient = 0.309) that increased the base odds of abstinence by exp(0.309) = 1.36 times. However, we found that varenicline's effectiveness exhibited variation across different baseline smoking characteristics. Particularly noteworthy was the positive interaction with daily cigarette consumption (coefficient = 0.021, odds ratio = exp(0.021) = 1.02), indicating an enhanced treatment effect with higher baseline smoking intensity. To illustrate, for participants reporting 20 cigarettes per day, varenicline's effectiveness showed an enhancement factor of exp(0.021 * 20) = 1.52 compared to its baseline effect.
 
@@ -639,25 +544,6 @@ In developing our advanced interaction model, we expanded the scope of our analy
 
 Secondly, we examined potential interactions between smoking behavior characteristics and quit motivation (ftcd_score × readiness). This investigation was driven by the theoretical premise that elevated levels of nicotine dependence, as measured by the Fagerström Test score, might attenuate the typically positive influence of quit motivation on cessation outcomes. Finally, we explored social interactions, particularly focusing on education level's interaction with quit readiness (edu × readiness) and income level's interaction with antidepressant medication use (inc × antidepmed). These interactions were chosen to investigate how educational background might moderate the translation of motivation into successful cessation, and how social factors might influence medication effectiveness through differential access to healthcare resources and support systems.
 
-The advanced interaction model with $\alpha = 0.5$ and $\lambda = 0.071$ can be expressed as:
-
-$$
-\begin{aligned}
-logit(P(abst = 1)) &= \beta_0 + \beta_1 \times Var + \beta_2 \times inc5 + \beta_3 \times edu4 + \beta_4 \times edu5 \\
-&+ \beta_5 \times ftcd\_score + \beta_6 \times hedonsum\_n\_pq1 + \beta_7 \times hedonsum\_y\_pq1 \\
-&+ \beta_8 \times shaps\_score\_pq1 + \beta_9 \times antidepmed1 + \beta_{10} \times NMR \\
-&+ \beta_{11} \times (Var \times cpd\_ps) + \beta_{12} \times (Var \times readiness) \\
-&+ \beta_{13} \times (bdi\_score\_w00 \times shaps\_score\_pq1) + \beta_{14} \times (ftcd\_score \times readiness) \\
-&+ \beta_{15} \times (edu4 \times readiness) + \beta_{16} \times (inc3 \times antidepmed1) \\
-&= -0.430 + 0.242 \times Var + 0.244 \times inc5 - 0.206 \times edu4 + 0.138 \times edu5 \\
-&- 0.097 \times ftcd\_score + 0.046 \times hedonsum\_n\_pq1 - 0.156 \times hedonsum\_y\_pq1 \\
-&- 0.033 \times shaps\_score\_pq1 + 0.015 \times antidepmed1 + 0.149 \times NMR \\
-&+ 0.019 \times (Var \times cpd\_ps) + 0.017 \times (Var \times readiness) \\
-&+ 0.000 \times (bdi\_score\_w00 \times shaps\_score\_pq1) - 0.011 \times (ftcd\_score \times readiness) \\
-&- 0.014 \times (edu4 \times readiness) + 1.204 \times (inc3 \times antidepmed1)
-\end{aligned}
-$$
-
 Our advanced interaction model demonstrated superior predictive performance, achieving the highest test set Area Under the Curve (AUC) of 0.711. This improvement in predictive accuracy suggests that the incorporation of comprehensive interaction terms successfully captured important complex relationships in the data. The variable importance analysis revealed several notable interaction patterns that warrant detailed examination.
 
 The most prominent finding emerged from the social domain, where we observed a strong interaction between middle income level and antidepressant medication use (coefficient = 1.204, odds ratio = exp(1.204) = 3.33). This substantial effect indicates that participants in the middle income group experienced more than triple the effectiveness from antidepressant medication compared to other income groups. Treatment-related interactions also demonstrated meaningful patterns: varenicline's effectiveness showed positive interaction with both daily cigarette consumption (coefficient = 0.019, odds ratio per cigarette = exp(0.019) = 1.019) and readiness to quit (coefficient = 0.017, odds ratio per unit = exp(0.017) = 1.017). To illustrate, for participants smoking 20 cigarettes per day, the varenicline treatment effect was enhanced by a factor of exp(0.019 * 20) = 1.46.
@@ -713,7 +599,7 @@ Our interaction models revealed significant heterogeneity in treatment effects a
 
 The advanced interaction model uncovered important social dimensions of treatment response. We identified a strong positive interaction between middle income level and antidepressant medication use (inc3 × antidepmed: 1.204), suggesting significant social moderation of depression treatment effectiveness. Additionally, the negative interaction between education level and quit readiness (edu4 × readiness: -0.014) indicated that the translation of quit motivation into successful cessation varies across educational backgrounds.
 
-Several limitations should be noted in our analysis. First, our relatively small sample size (n=241 after removing missing values) may have limited our ability to detect smaller interaction effects. Second, our binary outcome measure (7-day point prevalence abstinence) may not fully capture the complexity of smoking cessation trajectories. Third, our models did not account for potential time-varying treatment effects or the dynamic nature of depression symptoms during quit attempts.
+Several limitations should be noted in our analysis. First, our relatively small sample size (n=241 after removing missing values) may have limited our ability to detect smaller interaction effects. Second, our binary outcome measure may not fully capture the complexity of smoking cessation trajectories. Third, our models did not account for potential time-varying treatment effects or the dynamic nature of depression symptoms during quit attempts.
 
 Future research directions should address several key areas. Larger sample sizes would enable more precise estimation of interaction effects and potentially reveal additional treatment effect moderators. The incorporation of longitudinal measures for both smoking behavior and depression symptoms could provide valuable insights into temporal dynamics of treatment effects. Additionally, more sophisticated modeling approaches, such as Bayesian methods or advanced machine learning techniques, might better capture the complex relationships between patient characteristics and treatment outcomes.
 
